@@ -1,0 +1,588 @@
+# Gym App – API Documentation (plain text)
+
+## 1. Authentication
+All protected routes require a Bearer token (Laravel Sanctum).
+Add the header:
+
+    Authorization: Bearer <your_access_token>
+
+Public routes (login, register) do not need this header.
+
+### Authentication Endpoints
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **POST** | `/api/register` | Register a new user account. |
+| **POST** | `/api/login` | Login and receive access token. |
+| **POST** | `/api/logout` | Logout (invalidate current token). |
+| **GET** | `/api/me` | Get current authenticated user info. |
+
+### Request – Register (`POST /api/register`)
+```json
+{
+  "name": "John Doe",
+  "email": "john@example.com",
+  "password": "password123",
+  "password_confirmation": "password123"
+}
+```
+
+### Response – Register Success (201)
+```json
+{
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "user"
+  },
+  "token": "1|abc123...",
+  "token_type": "Bearer"
+}
+```
+
+### Request – Login (`POST /api/login`)
+```json
+{
+  "email": "john@example.com",
+  "password": "password123"
+}
+```
+
+### Response – Login Success (200)
+```json
+{
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "role": "user"
+  },
+  "token": "2|xyz789...",
+  "token_type": "Bearer"
+}
+```
+
+### Response – Get User (`GET /api/me`)
+```json
+{
+  "id": 1,
+  "name": "John Doe",
+  "email": "john@example.com",
+  "role": "user",
+  "profile_photo": "http://127.0.0.1:8000/storage/profile_photos/abc123.jpg",
+  "profile": {
+    "id": 1,
+    "user_id": 1,
+    "current_weight": 75,
+    "target_weight": 70,
+    "height": 175,
+    "age": 30,
+    "gender": "male",
+    "goal": "lose_weight",
+    "activity_level": "moderate"
+  }
+}
+```
+
+---
+
+## 2. User Profile
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/profile` | Get user profile details. |
+| **PATCH** | `/api/profile` | Update profile (including photo upload). |
+| **GET** | `/api/profile/calculate-calories` | Calculate recommended calories based on profile. |
+
+### Headers (for PATCH)
+```
+Content-Type: multipart/form-data
+Accept: application/json
+Authorization: Bearer <token>
+```
+
+### Request – Update Profile (`PATCH /api/profile`)
+**Multipart Form Data:**
+- `name` (string, optional) – User's full name (max 255 chars).
+- `email` (string, optional) – User's email (must be unique).
+- `profile_photo` (file, optional) – Profile image (jpeg/png/jpg/gif, max 5MB).
+- `current_weight` (number, optional) – Current weight in kg (1-500).
+- `target_weight` (number, optional) – Target weight in kg (1-500).
+- `height` (number, optional) – Height in cm (50-300).
+- `age` (integer, optional) – Age in years (1-120).
+- `gender` (string, optional) – "male", "female", or "other".
+- `goal` (string, optional) – "lose_weight", "gain_weight", "maintain", or "build_muscle".
+- `activity_level` (string, optional) – "sedentary", "light", "moderate", "active", or "very_active".
+
+### Response – Update Profile Success (200)
+```json
+{
+  "user": {
+    "id": 1,
+    "name": "John Doe",
+    "email": "john@example.com",
+    "profile_photo": "http://127.0.0.1:8000/storage/profile_photos/xyz789.jpg"
+  },
+  "profile": {
+    "id": 1,
+    "user_id": 1,
+    "current_weight": 75,
+    "target_weight": 70,
+    "height": 175,
+    "age": 30,
+    "gender": "male",
+    "goal": "lose_weight",
+    "activity_level": "moderate",
+    "daily_calorie_target": 2000,
+    "daily_protein_target": 150,
+    "daily_carbs_target": 250,
+    "daily_fat_target": 65
+  }
+}
+```
+
+### Response – Calculate Calories (`GET /api/profile/calculate-calories`)
+```json
+{
+  "bmr": 1680,
+  "tdee": 2352,
+  "recommended_calories": 1852,
+  "recommended_protein": 139,
+  "recommended_carbs": 185,
+  "recommended_fat": 62
+}
+```
+
+### Error Responses
+- `401 Unauthorized` – missing/invalid token.
+- `404 Not Found` – profile not found.
+- `422 Unprocessable Entity` – validation errors (e.g., email already taken, invalid file type).
+
+---
+
+## 3. Meals
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/meals` | List all meals for the authenticated user (paginated). |
+| **GET** | `/api/meals/{id}` | Retrieve a single meal (including its food logs). |
+| **POST** | `/api/meals` | Create a new meal (photo upload optional). |
+| **PUT** | `/api/meals/{id}` | Update meal details (name, photo, etc.). |
+| **DELETE** | `/api/meals/{id}` | Soft‑delete a meal (sets `deleted_at`). |
+| **POST** | `/api/meals/{id}/restore` | Restore a soft‑deleted meal. |
+
+### Headers (for all except GET list)
+```
+Content-Type: multipart/form-data   (for photo upload)
+Accept: application/json
+Authorization: Bearer <token>
+```
+
+### Request – Create Meal (`POST /api/meals`)
+- `name` (string, required) – Meal name.
+- `photo` (file, optional) – JPEG/PNG image (max 5 MB).
+- `food_logs` (JSON array, optional) – Each item: `{ "food_name": "...", "calories": 120, "protein": 5, ... }`.
+- `total_calories`, `total_protein`, `total_carbs`, `total_fat` (int, optional) – If omitted they are summed from `food_logs`.
+
+### Response – Success (201 Created)
+```json
+{
+  "id": 12,
+  "name": "Chicken Rice",
+  "photo_url": "http://127.0.0.1/storage/meals/abc123.jpg",
+  "total_calories": 650,
+  "total_protein": 35,
+  "total_carbs": 70,
+  "total_fat": 20,
+  "food_logs": [
+    {"food_name": "Chicken", "calories": 165, "protein": 31, "carbs": 0, "fat": 3.6},
+    {"food_name": "Rice", "calories": 130, "protein": 2.7, "carbs": 28.2, "fat": 0.3}
+  ],
+  "created_at": "2026-04-19T07:30:00.000000Z",
+  "updated_at": "2026-04-19T07:30:00.000000Z"
+}
+```
+
+### Response – List (`GET /api/meals`)
+```json
+{
+  "data": [ /* array of meals as above */ ],
+  "meta": {"current_page":1,"last_page":1,"per_page":15,"total":3}
+}
+```
+
+### Error Responses
+- `401 Unauthorized` – missing/invalid token.
+- `403 Forbidden` – accessing a meal that does not belong to the user.
+- `404 Not Found` – meal ID does not exist.
+- `422 Unprocessable Entity` – validation errors (see `errors` field).
+
+---
+
+## 3. Meals
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/meals` | List all meals for the authenticated user (paginated). |
+| **GET** | `/api/meals/{id}` | Retrieve a single meal (including its food logs). |
+| **POST** | `/api/meals` | Create a new meal (photo upload optional). |
+| **PUT** | `/api/meals/{id}` | Update meal details (name, photo, etc.). |
+| **DELETE** | `/api/meals/{id}` | Soft‑delete a meal (sets `deleted_at`). |
+| **POST** | `/api/meals/{id}/restore` | Restore a soft‑deleted meal. |
+
+### Headers (for all except GET list)
+```
+Content-Type: multipart/form-data   (for photo upload)
+Accept: application/json
+Authorization: Bearer <token>
+```
+
+### Request – Create Meal (`POST /api/meals`)
+- `name` (string, required) – Meal name.
+- `photo` (file, optional) – JPEG/PNG image (max 5 MB).
+- `food_logs` (JSON array, optional) – Each item: `{ "food_name": "...", "calories": 120, "protein": 5, ... }`.
+- `total_calories`, `total_protein`, `total_carbs`, `total_fat` (int, optional) – If omitted they are summed from `food_logs`.
+
+### Response – Success (201 Created)
+```json
+{
+  "id": 12,
+  "name": "Chicken Rice",
+  "photo_url": "http://127.0.0.1/storage/meals/abc123.jpg",
+  "total_calories": 650,
+  "total_protein": 35,
+  "total_carbs": 70,
+  "total_fat": 20,
+  "food_logs": [
+    {"food_name": "Chicken", "calories": 165, "protein": 31, "carbs": 0, "fat": 3.6},
+    {"food_name": "Rice", "calories": 130, "protein": 2.7, "carbs": 28.2, "fat": 0.3}
+  ],
+  "created_at": "2026-04-19T07:30:00.000000Z",
+  "updated_at": "2026-04-19T07:30:00.000000Z"
+}
+```
+
+### Response – List (`GET /api/meals`)
+```json
+{
+  "data": [ /* array of meals as above */ ],
+  "meta": {"current_page":1,"last_page":1,"per_page":15,"total":3}
+}
+```
+
+### Error Responses
+- `401 Unauthorized` – missing/invalid token.
+- `403 Forbidden` – accessing a meal that does not belong to the user.
+- `404 Not Found` – meal ID does not exist.
+- `422 Unprocessable Entity` – validation errors (see `errors` field).
+
+---
+
+## 4. Tutorial Videos
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/tutorial-videos` | List all tutorial videos (public). |
+| **GET** | `/api/tutorial-videos/{id}` | Get details of a single video. |
+| **POST** | `/api/tutorial-videos` | Create a new video (admin only). |
+| **PUT** | `/api/tutorial-videos/{id}` | Update video details (admin only). |
+| **DELETE** | `/api/tutorial-videos/{id}` | Soft‑delete a video (admin only). |
+
+### Request – Create (`POST /api/tutorial-videos`)
+- `title` (string, required)
+- `description` (string, optional)
+- `category` (string, required, e.g., “Cardio”)
+- `video_url` (string, required)
+- `thumbnail_url` (string, optional)
+
+### Response – Success (201)
+```json
+{
+  "id":5,
+  "title":"Full‑Body HIIT",
+  "description":"20‑minute high‑intensity interval training.",
+  "category":"Cardio",
+  "video_url":"https://cdn.example.com/videos/hiit.mp4",
+  "thumbnail_url":"https://cdn.example.com/thumbs/hiit.jpg",
+  "created_at":"2026-04-19T08:12:00.000000Z",
+  "updated_at":"2026-04-19T08:12:00.000000Z"
+}
+```
+
+## 4. Tutorial Videos
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/tutorial-videos` | List all tutorial videos (public). |
+| **GET** | `/api/tutorial-videos/{id}` | Get details of a single video. |
+| **POST** | `/api/tutorial-videos` | Create a new video (admin only). |
+| **PUT** | `/api/tutorial-videos/{id}` | Update video details (admin only). |
+| **DELETE** | `/api/tutorial-videos/{id}` | Soft‑delete a video (admin only). |
+
+### Request – Create (`POST /api/tutorial-videos`)
+- `title` (string, required)
+- `description` (string, optional)
+- `category` (string, required, e.g., "Cardio")
+- `video_url` (string, required)
+- `thumbnail_url` (string, optional)
+
+### Response – Success (201)
+```json
+{
+  "id":5,
+  "title":"Full‑Body HIIT",
+  "description":"20‑minute high‑intensity interval training.",
+  "category":"Cardio",
+  "video_url":"https://cdn.example.com/videos/hiit.mp4",
+  "thumbnail_url":"https://cdn.example.com/thumbs/hiit.jpg",
+  "created_at":"2026-04-19T08:12:00.000000Z",
+  "updated_at":"2026-04-19T08:12:00.000000Z"
+}
+```
+
+---
+
+## 5. Workouts
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/workouts` | List workouts for the user. |
+| **GET** | `/api/workouts/{id}` | Retrieve a single workout (with sets). |
+| **POST** | `/api/workouts` | Create a new workout. |
+| **PUT** | `/api/workouts/{id}` | Update workout details. |
+| **DELETE** | `/api/workouts/{id}` | Soft‑delete a workout. |
+| **POST** | `/api/workouts/{id}/restore` | Restore a soft‑deleted workout. |
+
+### Request – Create (`POST /api/workouts`)
+- `name` (string, required)
+- `date` (date `YYYY‑MM‑DD`, required)
+- `sets` (JSON array, optional) – each set: `{ "exercise_id": 3, "reps": 12, "weight": 40 }`
+
+### Response – Success (201)
+```json
+{
+  "id":9,
+  "name":"Upper Body Strength",
+  "date":"2026-04-19",
+  "sets":[{"id":31,"exercise_id":3,"reps":12,"weight":40},{"id":32,"exercise_id":4,"reps":10,"weight":20}],
+  "created_at":"2026-04-19T09:00:00.000000Z",
+  "updated_at":"2026-04-19T09:00:00.000000Z"
+}
+```
+
+## 5. Workouts
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/workouts` | List workouts for the user. |
+| **GET** | `/api/workouts/{id}` | Retrieve a single workout (with sets). |
+| **POST** | `/api/workouts` | Create a new workout. |
+| **PUT** | `/api/workouts/{id}` | Update workout details. |
+| **DELETE** | `/api/workouts/{id}` | Soft‑delete a workout. |
+| **POST** | `/api/workouts/{id}/restore` | Restore a soft‑deleted workout. |
+
+### Request – Create (`POST /api/workouts`)
+- `name` (string, required)
+- `date` (date `YYYY‑MM‑DD`, required)
+- `sets` (JSON array, optional) – each set: `{ "exercise_id": 3, "reps": 12, "weight": 40 }`
+
+### Response – Success (201)
+```json
+{
+  "id":9,
+  "name":"Upper Body Strength",
+  "date":"2026-04-19",
+  "sets":[{"id":31,"exercise_id":3,"reps":12,"weight":40},{"id":32,"exercise_id":4,"reps":10,"weight":20}],
+  "created_at":"2026-04-19T09:00:00.000000Z",
+  "updated_at":"2026-04-19T09:00:00.000000Z"
+}
+```
+
+---
+
+## 6. Exercises
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/exercises` | List all available exercises (public). |
+| **GET** | `/api/exercises/{id}` | Get details of a single exercise. |
+| **POST** | `/api/exercises` | Create a new exercise (admin). |
+| **PUT** | `/api/exercises/{id}` | Update exercise. |
+| **DELETE** | `/api/exercises/{id}` | Soft‑delete an exercise (admin). |
+
+### Response – List (`GET /api/exercises`)
+```json
+{
+  "data":[{"id":1,"name":"Bench Press","muscle_group":"Chest"},{"id":2,"name":"Squat","muscle_group":"Legs"}]
+}
+```
+
+## 6. Exercises
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **GET** | `/api/exercises` | List all available exercises (public). |
+| **GET** | `/api/exercises/{id}` | Get details of a single exercise. |
+| **POST** | `/api/exercises` | Create a new exercise (admin). |
+| **PUT** | `/api/exercises/{id}` | Update exercise. |
+| **DELETE** | `/api/exercises/{id}` | Soft‑delete an exercise (admin). |
+
+### Response – List (`GET /api/exercises`)
+```json
+{
+  "data":[{"id":1,"name":"Bench Press","muscle_group":"Chest"},{"id":2,"name":"Squat","muscle_group":"Legs"}]
+}
+```
+
+---
+
+## 7. AI Coach – Food Image Recognition
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **POST** | `/api/ai/food-recognize` | Accept an image file, run through Clarifai → Gemini → estimator, return detected foods and nutrition. |
+
+### Headers
+```
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+Accept: application/json
+```
+
+### Request
+Multipart field `image` (file).
+
+### Response – Success (200)
+```json
+{
+  "detected_foods":[
+    {"food_name":"Chicken","calories":165,"protein":31,"carbs":0,"fat":3.6,"confidence":92.3,"ai_status":"clarifai"},
+    {"food_name":"Rice","calories":130,"protein":2.7,"carbs":28.2,"fat":0.3,"confidence":88.1,"ai_status":"clarifai"}
+  ],
+  "total_items":2,
+  "estimated_total_calories":295
+}
+```
+If all AI services fail, a generic estimate (≈ 450 kcal) is returned with `ai_status: "estimator"`.
+
+## 7. AI Coach – Food Image Recognition
+
+| Method | URL | Description |
+|--------|-----|-------------|
+| **POST** | `/api/ai/food-recognize` | Accept an image file, run through Clarifai → Gemini → estimator, return detected foods and nutrition. |
+
+### Headers
+```
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+Accept: application/json
+```
+
+### Request
+Multipart field `image` (file).
+
+### Response – Success (200)
+```json
+{
+  "detected_foods":[
+    {"food_name":"Chicken","calories":165,"protein":31,"carbs":0,"fat":3.6,"confidence":92.3,"ai_status":"clarifai"},
+    {"food_name":"Rice","calories":130,"protein":2.7,"carbs":28.2,"fat":0.3,"confidence":88.1,"ai_status":"clarifai"}
+  ],
+  "total_items":2,
+  "estimated_total_calories":295
+}
+```
+If all AI services fail, a generic estimate (≈ 450 kcal) is returned with `ai_status: "estimator"`.
+
+---
+
+## 8. Common Error Format
+All error responses follow this JSON structure:
+```json
+{
+  "message": "Human readable error description",
+  "errors": {"field_name":["Error message"]},
+  "status_code": 422
+}
+```
+- `message` – short summary.
+- `errors` – optional field‑level validation messages.
+- `status_code` – mirrors the HTTP status.
+
+## 8. Common Error Format
+All error responses follow this JSON structure:
+```json
+{
+  "message": "Human readable error description",
+  "errors": {"field_name":["Error message"]},
+  "status_code": 422
+}
+```
+- `message` – short summary.
+- `errors` – optional field‑level validation messages.
+- `status_code` – mirrors the HTTP status.
+
+---
+
+## 9. Quick cURL Cheatsheet
+```bash
+# Register a new user
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"name":"John Doe","email":"john@example.com","password":"password123","password_confirmation":"password123"}' \
+     http://127.0.0.1:8000/api/register
+
+# Login
+curl -X POST -H "Content-Type: application/json" \
+     -d '{"email":"john@example.com","password":"password123"}' \
+     http://127.0.0.1:8000/api/login
+
+# Get current user info
+curl -H "Authorization: Bearer $TOKEN" \
+     http://127.0.0.1:8000/api/me
+
+# Update profile with photo
+curl -X PATCH -H "Authorization: Bearer $TOKEN" \
+     -F "name=John Doe Updated" \
+     -F "email=john.new@example.com" \
+     -F "profile_photo=@/path/to/photo.jpg" \
+     -F "current_weight=75" \
+     -F "target_weight=70" \
+     -F "height=175" \
+     -F "age=30" \
+     http://127.0.0.1:8000/api/profile
+
+# Get profile
+curl -H "Authorization: Bearer $TOKEN" \
+     http://127.0.0.1:8000/api/profile
+
+# Calculate recommended calories
+curl -H "Authorization: Bearer $TOKEN" \
+     http://127.0.0.1:8000/api/profile/calculate-calories
+
+# List meals
+curl -H "Authorization: Bearer $TOKEN" \
+     http://127.0.0.1:8000/api/meals
+
+# Create a meal (with photo)
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     -F "name=Chicken Rice" \
+     -F "photo=@/path/to/photo.jpg" \
+     http://127.0.0.1:8000/api/meals
+
+# Delete a meal
+curl -X DELETE -H "Authorization: Bearer $TOKEN" \
+     http://127.0.0.1:8000/api/meals/12
+
+# Restore a soft‑deleted meal
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     http://127.0.0.1:8000/api/meals/12/restore
+
+# Recognize food from image
+curl -X POST -H "Authorization: Bearer $TOKEN" \
+     -F "image=@/path/to/food.jpg" \
+     http://127.0.0.1:8000/api/ai/food-recognize
+```
+---
+
+*End of API documentation.*
