@@ -54,6 +54,7 @@ class AIWorkoutGeneratorController extends Controller
 
     public function quickGenerate(Request $request)
     {
+        // Requires authentication
         $user        = Auth::user();
         $userProfile = $user?->profile;
 
@@ -84,7 +85,7 @@ class AIWorkoutGeneratorController extends Controller
             'days_per_week' => 3,
         ];
 
-        Log::info("AI Workout Quick Generate — user #{$user?->id}, goal: {$goal}, level: {$fitnessLevel}");
+        Log::info("AI Workout Quick Generate — user #{$user->id}, goal: {$goal}, level: {$fitnessLevel}");
 
         $workoutPlan = $this->localGenerator->generate($params, $userProfile);
 

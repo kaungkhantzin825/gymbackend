@@ -23,12 +23,30 @@ use App\Http\Controllers\Api\AdminController;
 |--------------------------------------------------------------------------
 */
 
-// Public routes
+// Public routes (No authentication required)
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/videos', [TutorialVideoController::class, 'index']); // Public videos
 
-// Protected routes
+// Phone Login with Twilio
+Route::post('/phone/send-otp', [AuthController::class, 'sendPhoneOTP']);
+Route::post('/phone/verify-otp', [AuthController::class, 'verifyPhoneOTP']);
+
+// Google Login
+Route::post('/google/login', [AuthController::class, 'googleLogin']);
+
+// Forgot Password
+Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+
+// Public Workout Videos (No login required)
+Route::get('/videos', [TutorialVideoController::class, 'index']);
+Route::get('/videos/{id}', [TutorialVideoController::class, 'show']);
+
+// Public App Settings
+Route::get('/settings/about', [\App\Http\Controllers\Api\AppSettingsController::class, 'getAbout']);
+Route::get('/settings/privacy-policy', [\App\Http\Controllers\Api\AppSettingsController::class, 'getPrivacyPolicy']);
+
+// Protected routes (Authentication required)
 Route::middleware('auth:sanctum')->group(function () {
     // Auth
     Route::post('/logout', [AuthController::class, 'logout']);
@@ -46,16 +64,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/profile/calculate-calories', [UserProfileController::class, 'calculateCalories']);
 
     // Meals
+    Route::get('/meals', [MealController::class, 'index']);
     Route::get('/meals/history', [MealController::class, 'history']);
     Route::post('/meals/{id}/restore', [MealController::class, 'restore']);
-    Route::apiResource('meals', MealController::class);
+    Route::apiResource('meals', MealController::class)->except(['index']);
     Route::post('/meals/{meal}/foods', [MealController::class, 'addFood']);
     Route::delete('/meals/{meal}/foods/{foodLog}', [MealController::class, 'removeFood']);
     Route::post('/meals/{meal}/analyze', [MealController::class, 'analyzePhoto']);
 
-    // Tutorial Videos (authenticated)
-    Route::get('/videos', [TutorialVideoController::class, 'index']);
-    Route::get('/videos/{id}', [TutorialVideoController::class, 'show']);
+    // Tutorial Videos (authenticated - for user-specific features)
+    // Public access is available outside auth middleware
 
 
     // Exercises
@@ -74,7 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/ai/workout/generate', [AICoachController::class, 'generateWorkout']);
     Route::post('/ai/coach/chat', [AICoachController::class, 'chat']); // Placeholder
 
-    // AI Workout Generator (New Feature)
+    // AI Workout Generator (Login required)
     Route::post('/ai/workout-plan/generate', [\App\Http\Controllers\Api\AIWorkoutGeneratorController::class, 'generate']);
     Route::post('/ai/workout-plan/quick-generate', [\App\Http\Controllers\Api\AIWorkoutGeneratorController::class, 'quickGenerate']);
 
@@ -98,9 +116,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/support/messages', [\App\Http\Controllers\Api\SupportController::class, 'getMessages']);
     Route::get('/support/messages/{id}', [\App\Http\Controllers\Api\SupportController::class, 'getMessage']);
 
-    // App Settings (About, Privacy Policy)
-    Route::get('/settings/about', [\App\Http\Controllers\Api\AppSettingsController::class, 'getAbout']);
-    Route::get('/settings/privacy-policy', [\App\Http\Controllers\Api\AppSettingsController::class, 'getPrivacyPolicy']);
+    // App Settings - Public routes moved outside auth middleware
 
     // Admin Routes (requires admin role)
     Route::prefix('admin')->group(function () {
