@@ -7,15 +7,20 @@ use Illuminate\Support\Facades\Cache;
 
 class TwilioService
 {
-    protected string $accountSid;
-    protected string $authToken;
-    protected string $phoneNumber;
+    protected ?string $accountSid;
+    protected ?string $authToken;
+    protected ?string $phoneNumber;
 
     public function __construct()
     {
         $this->accountSid = env('TWILIO_ACCOUNT_SID');
         $this->authToken = env('TWILIO_AUTH_TOKEN');
         $this->phoneNumber = env('TWILIO_PHONE_NUMBER');
+        
+        // Validate Twilio credentials
+        if (!$this->accountSid || !$this->authToken || !$this->phoneNumber) {
+            Log::warning('Twilio credentials not configured in .env file');
+        }
     }
 
     /**
@@ -23,6 +28,15 @@ class TwilioService
      */
     public function sendOTP(string $phoneNumber): array
     {
+        // Check if Twilio is configured
+        if (!$this->accountSid || !$this->authToken || !$this->phoneNumber) {
+            Log::error('Twilio credentials not configured');
+            return [
+                'success' => false,
+                'message' => 'SMS service not configured. Please contact administrator.',
+            ];
+        }
+        
         try {
             // Generate 6-digit OTP
             $otp = str_pad(random_int(100000, 999999), 6, '0', STR_PAD_LEFT);
