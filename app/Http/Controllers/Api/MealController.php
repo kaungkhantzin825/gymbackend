@@ -56,9 +56,10 @@ class MealController extends Controller
         if ($request->hasFile('photo')) {
             $photoPath = $request->file('photo')->store('meals', 'public');
             
-            // Analyze image for food detection
-            $fullPath = storage_path('app/public/' . $photoPath);
-            $detectedFoods = $this->imageRecognitionService->analyzeImage($fullPath);
+            // Analyze image for food detection — pass profile for personalized AI advice
+            $fullPath     = storage_path('app/public/' . $photoPath);
+            $userProfile  = $request->user()->profile?->toArray();
+            $detectedFoods = $this->imageRecognitionService->analyzeImage($fullPath, $userProfile);
         }
 
         $meal = $request->user()->meals()->create([
